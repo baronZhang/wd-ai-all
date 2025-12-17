@@ -1,0 +1,27 @@
+[submodule "projects/spring-ai"]
+	path = projects/spring-ai
+	url = https://github.com/spring-projects/spring-ai.git
+[submodule "projects/spring-wd-alibaba-example"]
+	path = projects/spring-wd-alibaba-example
+	url = https://github.com/baronZhang/spring-wd-alibaba-example.git
+[submodule "projects/spring-ai-alibaba"]
+	path = projects/spring-ai-alibaba
+	url = https://github.com/alibaba/spring-ai-alibaba.git
+[submodule "projects/spring-ai-extensions"]
+	path = projects/spring-ai-extensions
+	url = https://github.com/spring-ai-alibaba/spring-ai-extensions.git
+[submodule "projects/springai-demo"]
+	path = projects/springai-demo
+	url = https://github.com/baronZhang/springai-demo.git
+[submodule "projects/java-genai"]
+	path = projects/java-genai
+	url = https://github.com/googleapis/java-genai.git
+[submodule "projects/spring-ai-alibaba-examples"]
+	path = projects/spring-ai-alibaba-examples
+	url = https://github.com/springaialibaba/spring-ai-alibaba-examples.git
+[submodule "projects/langchain"]
+	path = projects/langchain
+	url = https://github.com/langchain-ai/langchain.git
+[submodule "projects/langgraph"]
+	path = projects/langgraph
+	url = https://github.com/langchain-ai/langgraph.git
