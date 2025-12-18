@@ -25,3 +25,6 @@
 [submodule "projects/langgraph"]
 	path = projects/langgraph
 	url = https://github.com/langchain-ai/langgraph.git
+[submodule "projects/wd-langchain"]
+	path = projects/wd-langchain
+	url = https://github.com/baronZhang/wd-langchain.git
