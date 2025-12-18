@@ -28,3 +28,6 @@
 [submodule "projects/wd-ai-backend"]
 	path = projects/wd-ai-backend
 	url = https://github.com/baronZhang/wd-ai-backend.git
+[submodule "projects/wd-langchain2"]
+	path = projects/wd-langchain2
+	url = https://github.com/baronZhang/wd-langchain2.git
