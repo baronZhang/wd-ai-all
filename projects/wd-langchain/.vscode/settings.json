@@ -1,0 +1,7 @@
+{
+  "python.defaultInterpreterPath": "/opt/anaconda3/envs/langchain/bin/python",
+  "jupyter.askForKernelRestart": false,
+  "jupyter.runStartupCommands": [
+    "import sys; print(sys.executable)"
+  ]
+}
