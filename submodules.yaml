@@ -1,0 +1,23 @@
+submodules:
+  - path: projects/spring-ai
+    repo: https://github.com/spring-projects/spring-ai.git
+  - path: projects/spring-wd-alibaba-example
+    repo: https://github.com/baronZhang/spring-wd-alibaba-example.git
+  - path: projects/spring-ai-alibaba
+    repo: https://github.com/alibaba/spring-ai-alibaba.git
+  - path: projects/spring-ai-extensions
+    repo: https://github.com/spring-ai-alibaba/spring-ai-extensions.git
+  - path: projects/springai-demo
+    repo: https://github.com/baronZhang/springai-demo.git
+  - path: projects/java-genai
+    repo: https://github.com/googleapis/java-genai.git
+  - path: projects/spring-ai-alibaba-examples
+    repo: https://github.com/springaialibaba/spring-ai-alibaba-examples.git
+  - path: projects/langchain
+    repo: https://github.com/langchain-ai/langchain.git
+  - path: projects/langgraph
+    repo: https://github.com/langchain-ai/langgraph.git
+  - path: projects/wd-langchain
+    repo: https://github.com/baronZhang/wd-langchain.git
+  - path: projects/ai-backend
+    repo: https://github.com/baronZhang/ai-backend.git

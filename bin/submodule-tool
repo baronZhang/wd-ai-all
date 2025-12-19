@@ -1,0 +1,255 @@
+#!/usr/bin/env bash
+set -e
+
+usage() {
+  cat <<EOL
+Usage:
+  submodule-tool add     <agg_root> <path> <repo_name> [public|private]
+  submodule-tool remove  <agg_root> <path>
+  submodule-tool restore <agg_root> <path> <repo_url>
+  submodule-tool clean   <agg_root>
+  submodule-tool list    <agg_root>
+
+Examples:
+  submodule-tool add ~/wd-ai-all projects/ai-backend ai-backend private
+  submodule-tool remove ~/wd-ai-all projects/ai-backend
+  submodule-tool restore ~/wd-ai-all projects/ai-backend https://github.com/user/ai-backend.git
+  submodule-tool list ~/wd-ai-all
+EOL
+}
+
+CMD="$1"
+AGG_ROOT="$2"
+PATH_ARG="$3"
+REPO_ARG="$4"
+VISIBILITY="${5:-private}"
+
+[ -z "$CMD" ] && usage && exit 1
+[ ! -d "$AGG_ROOT/.git" ] && echo "❌ $AGG_ROOT is not a git repo" && exit 1
+
+cd "$AGG_ROOT"
+
+command -v git >/dev/null || { echo "❌ git missing"; exit 1; }
+
+clean_residual() {
+  local path="$1"
+  echo "🧹 Cleaning residual state for $path"
+  git submodule deinit -f "$path" 2>/dev/null || true
+  git rm -f "$path" 2>/dev/null || true
+  rm -rf ".git/modules/$path" "$path"
+  if [ -f .gitmodules ]; then
+    git config --file .gitmodules --remove-section "submodule.$path" || true
+    git add .gitmodules || true
+  fi
+}
+
+ensure_remote_has_commit() {
+  local url="$1"
+  TMP=$(mktemp -d)
+  git clone "$url" "$TMP"
+  cd "$TMP"
+  if ! git rev-parse HEAD >/dev/null 2>&1; then
+    echo "# init" > README.md
+    git add README.md
+    git commit -m "init: first commit"
+    git branch -M main
+    git push -u origin main
+  fi
+  cd - >/dev/null
+  rm -rf "$TMP"
+}
+
+is_plain_git_repo() {
+  [ -d "$1/.git" ] && ! git config --file .gitmodules --get "submodule.$1.url" >/dev/null 2>&1
+}
+
+case "$CMD" in
+
+add)
+  command -v gh >/dev/null || { echo "❌ gh missing"; exit 1; }
+  GH_USER=$(gh api user --jq .login)
+  REPO_URL="https://github.com/${GH_USER}/${REPO_ARG}.git"
+
+  clean_residual "$PATH_ARG"
+
+  if gh repo view "$GH_USER/$REPO_ARG" >/dev/null 2>&1; then
+    echo "ℹ️ Repo exists, skip create"
+  else
+    gh repo create "$GH_USER/$REPO_ARG" --"$VISIBILITY" --confirm
+  fi
+
+  ensure_remote_has_commit "$REPO_URL"
+
+  git submodule add "$REPO_URL" "$PATH_ARG"
+  git add .gitmodules "$PATH_ARG"
+  git commit -m "chore: add submodule $PATH_ARG"
+  echo "✅ added $PATH_ARG"
+  ;;
+
+remove)
+  clean_residual "$PATH_ARG"
+  git commit -m "chore: remove submodule $PATH_ARG" || true
+  echo "✅ removed $PATH_ARG"
+  ;;
+
+restore)
+  REPO_URL="$REPO_ARG"
+  echo "🔧 Restoring $PATH_ARG as submodule"
+  clean_residual "$PATH_ARG"
+  ensure_remote_has_commit "$REPO_URL"
+  git submodule add "$REPO_URL" "$PATH_ARG"
+  git add .gitmodules "$PATH_ARG"
+  git commit -m "chore: restore submodule $PATH_ARG"
+  echo "✅ restored $PATH_ARG"
+  ;;
+
+list)
+  [ ! -f .gitmodules ] && echo "No submodules" && exit 0
+  echo "📦 Submodules:"
+  git config --file .gitmodules --get-regexp path | while read _ p; do
+    url=$(git config --file .gitmodules --get "submodule.$p.url")
+    echo " - $p → $url"
+  done
+  ;;
+
+sync)
+  echo "🔄 Syncing all submodules..."
+
+  git submodule init
+  git submodule update --recursive
+
+  # 修复目录存在但未 checkout 的 submodule
+  git submodule foreach --recursive '
+    if [ ! -f .git ]; then
+      echo "⚠️ Fixing submodule $name"
+      git checkout .
+    fi
+  '
+
+  echo "✅ Submodules synced"
+  ;;
+
+apply)
+  CONFIG_FILE="$AGG_ROOT/submodules.yaml"
+  [ ! -f "$CONFIG_FILE" ] && echo "❌ submodules.yaml not found" && exit 1
+
+  COUNT=$(yq '.submodules | length' "$CONFIG_FILE")
+
+  for i in $(seq 0 $((COUNT - 1))); do
+    PATH_ARG=$(yq ".submodules[$i].path" "$CONFIG_FILE")
+    REPO_URL=$(yq ".submodules[$i].repo" "$CONFIG_FILE")
+    VISIBILITY=$(yq ".submodules[$i].visibility // \"private\"" "$CONFIG_FILE")
+
+    echo "📦 Applying $PATH_ARG"
+
+    if git config --file .gitmodules --get "submodule.$PATH_ARG.url" >/dev/null 2>&1; then
+      CURRENT_URL=$(git config --file .gitmodules --get "submodule.$PATH_ARG.url")
+      if [ "$CURRENT_URL" != "$REPO_URL" ]; then
+        echo "🔧 URL mismatch, restoring"
+        clean_residual "$PATH_ARG"
+        ensure_remote_has_commit "$REPO_URL"
+        git submodule add "$REPO_URL" "$PATH_ARG"
+      else
+        echo "✔ Submodule exists, skipping"
+      fi
+
+    elif is_plain_git_repo "$PATH_ARG"; then
+      echo "🔁 Plain git repo detected, converting to submodule"
+      clean_residual "$PATH_ARG"
+      ensure_remote_has_commit "$REPO_URL"
+      git submodule add "$REPO_URL" "$PATH_ARG"
+
+    else
+      echo "➕ Submodule missing, adding"
+      ensure_remote_has_commit "$REPO_URL"
+      git submodule add --force "$REPO_URL" "$PATH_ARG"
+    fi
+  done
+
+  git add .gitmodules
+  git commit -m "chore: apply submodules.yaml" || true
+  echo "✅ submodules.yaml applied"
+  ;;
+
+clean)
+  CONFIG_FILE="$AGG_ROOT/submodules.yaml"
+  [ ! -f "$CONFIG_FILE" ] && echo "❌ submodules.yaml not found" && exit 1
+
+  echo "🧹 Cleaning undefined submodules..."
+
+  # Read allowed paths into a newline-separated string
+  ALLOWED_PATHS=$(yq '.submodules[].path' "$CONFIG_FILE")
+
+  # Iterate over all current submodules
+  git config --file .gitmodules --get-regexp path | while read _ p; do
+    # Check if current path 'p' is in ALLOWED_PATHS
+    if ! echo "$ALLOWED_PATHS" | grep -qx "$p"; then
+      echo "🗑️  Creating undefined submodule: $p"
+      clean_residual "$p"
+      REMOVED=true
+    fi
+  done
+
+  if [ "$REMOVED" = true ]; then
+    git commit -m "chore: clean undefined submodules" || true
+    echo "✅ Cleanup .gitmodules complete"
+  else
+    echo "✅ No undefined submodules found in .gitmodules"
+  fi
+
+  echo "🧹 Cleaning orphaned .git/modules..."
+  ORPHAN_FOUND=false
+  # Find all 'config' files inside .git/modules to identify valid git dirs
+  # We use 'find' and pipe to a loop. 
+  # Note: Submodules can be nested, but standard structure is .git/modules/<path>
+  # This simple find finds all git dirs (which have a config file).
+  
+  find .git/modules -name "config" | while read -r CONFIG_PATH; do
+    # CONFIG_PATH is like .git/modules/projects/ai-backend/config
+    # DIR_PATH is like .git/modules/projects/ai-backend
+    DIR_PATH=$(dirname "$CONFIG_PATH")
+    
+    # REL_PATH is like projects/ai-backend. We strip .git/modules/ prefix
+    REL_PATH=${DIR_PATH#./.git/modules/}
+    REL_PATH=${REL_PATH#.git/modules/}
+    
+    # Check if this REL_PATH is in ALLOWED_PATHS
+    if ! echo "$ALLOWED_PATHS" | grep -qx "$REL_PATH"; then
+      echo "🗑️  Removing orphaned git dir: $DIR_PATH ($REL_PATH)"
+      rm -rf "$DIR_PATH"
+      ORPHAN_FOUND=true
+    fi
+  done
+  
+  if [ "$ORPHAN_FOUND" = true ]; then
+     echo "✅ Orphaned .git/modules cleaned"
+  else
+     echo "✅ No orphaned .git/modules found"
+  fi
+  ;;
+
+export-yaml)
+  command -v yq >/dev/null || {
+    echo "❌ yq required (brew install yq)"
+    exit 1
+  }
+
+  [ ! -f .gitmodules ] && echo "❌ .gitmodules not found" && exit 1
+
+  echo "submodules:" > submodules.yaml
+
+  git config --file .gitmodules --get-regexp path | while read _ p; do
+    url=$(git config --file .gitmodules --get "submodule.$p.url")
+    cat >> submodules.yaml <<EOL
+  - path: $p
+    repo: $url
+EOL
+  done
+
+  echo "✅ submodules.yaml exported from .gitmodules"
+  ;;
+
+*)
+  usage
+  exit 1
+esac

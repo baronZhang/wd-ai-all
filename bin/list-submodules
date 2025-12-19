@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -e
+
+AGG_ROOT="$1"  # 聚合仓库根目录
+
+if [ -z "$AGG_ROOT" ]; then
+  echo "Usage: list-submodules <agg_root>"
+  exit 1
+fi
+
+if [ ! -d "$AGG_ROOT/.git" ]; then
+  echo "❌ $AGG_ROOT is not a git repository"
+  exit 1
+fi
+
+cd "$AGG_ROOT"
+
+if [ ! -f .gitmodules ]; then
+  echo "ℹ️ No submodules found"
+  exit 0
+fi
+
+echo "📦 Submodules in $AGG_ROOT:"
+git config --file .gitmodules --get-regexp path | while read key path; do
+  url=$(git config --file .gitmodules --get-regexp "url" | grep -A1 "$path" | tail -n1 | awk '{print $2}')
+  echo "  - Path: $path"
+  echo "    URL : $url"
+done

@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -e
+
+AGG_ROOT="$1"
+REPO_NAME="$2"
+TARGET_PATH="$3"
+VISIBILITY="${4:-private}"
+
+if [ -z "$AGG_ROOT" ] || [ -z "$REPO_NAME" ] || [ -z "$TARGET_PATH" ]; then
+  echo "Usage: add-submodule-plus <agg_root> <repo_name> <target_path> [public|private]"
+  exit 1
+fi
+
+# 检查聚合仓库
+if [ ! -d "$AGG_ROOT/.git" ]; then
+  echo "❌ $AGG_ROOT is not a git repository"
+  exit 1
+fi
+
+# 检查 gh
+command -v gh >/dev/null 2>&1 || { echo "❌ gh not installed"; exit 1; }
+if ! gh auth status >/dev/null 2>&1; then
+  echo "❌ gh not authenticated"
+  exit 1
+fi
+
+GH_USER=$(gh api user --jq .login)
+REPO_URL="https://github.com/${GH_USER}/${REPO_NAME}.git"
+
+# ===== 自动清理残留目录 / 半残留 submodule =====
+cd "$AGG_ROOT"
+
+if [ -d "$TARGET_PATH" ]; then
+  echo "ℹ️ Target path $TARGET_PATH exists, cleaning residual..."
+  git submodule deinit -f "$TARGET_PATH" || true
+  git rm -f "$TARGET_PATH" || true
+  rm -rf ".git/modules/$TARGET_PATH" || true
+  rm -rf "$TARGET_PATH"
+  # 清理 .gitmodules 条目
+  if [ -f .gitmodules ]; then
+    sed -i.bak "/$TARGET_PATH/,+2d" .gitmodules || true
+    git add .gitmodules
+    git commit -m "chore: clean residual submodule $TARGET_PATH" || true
+  fi
+fi
+
+# ===== 创建 GitHub 仓库（如果不存在） =====
+if gh repo view "${GH_USER}/${REPO_NAME}" >/dev/null 2>&1; then
+  echo "ℹ️ Repository ${REPO_NAME} already exists, skipping creation"
+else
+  echo "🚀 Creating GitHub repository: ${GH_USER}/${REPO_NAME} (${VISIBILITY})"
+  gh repo create "${GH_USER}/${REPO_NAME}" --"${VISIBILITY}" --confirm
+fi
+
+# ===== 确保远程仓库至少有一次 commit =====
+TMP_DIR=$(mktemp -d)
+git clone "$REPO_URL" "$TMP_DIR"
+cd "$TMP_DIR"
+if [ -z "$(git rev-parse --verify HEAD 2>/dev/null)" ]; then
+  echo "# ${REPO_NAME}" > README.md
+  git add README.md
+  git commit -m "init: first commit"
+  git branch -M main
+  git push -u origin main
+fi
+cd - >/dev/null
+rm -rf "$TMP_DIR"
+
+# ===== 添加 submodule =====
+git submodule add "$REPO_URL" "$TARGET_PATH"
+git add .gitmodules "$TARGET_PATH"
+git commit -m "chore: add submodule ${REPO_NAME}"
+
+echo "✅ Done!"
+echo "   Repo: ${REPO_URL}"
+echo "   Aggregation root: ${AGG_ROOT}"
+echo "   Submodule path: ${TARGET_PATH}"
