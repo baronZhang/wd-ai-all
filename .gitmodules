@@ -31,3 +31,6 @@
 [submodule "projects/ai-backend"]
 	path = projects/ai-backend
 	url = https://github.com/baronZhang/ai-backend.git
+[submodule "projects/ai-backend-go"]
+	path = projects/ai-backend-go
+	url = https://github.com/baronZhang/ai-backend-go.git
