@@ -59,6 +59,44 @@ ensure_remote_has_commit() {
   rm -rf "$TMP"
 }
 
+ensure_github_repo_exists() {
+  local url="$1"
+  local visibility="$2"
+
+  # Only handle github.com URLs for creation
+  if [[ "$url" != *"github.com"* ]]; then
+    return 0
+  fi
+
+  # Extract owner/repo from URL
+  local clean_url="${url%.git}"
+  local repo_path=""
+
+  if [[ "$clean_url" == https://github.com/* ]]; then
+    repo_path="${clean_url#https://github.com/}"
+  elif [[ "$clean_url" == git@github.com:* ]]; then
+    repo_path="${clean_url#git@github.com:}"
+  fi
+
+  if [ -z "$repo_path" ]; then
+    return 0
+  fi
+
+  # Check if gh is installed
+  if ! command -v gh >/dev/null; then
+    echo "⚠️ gh tool not found, skipping repo creation check for $repo_path"
+    return 0
+  fi
+
+  if gh repo view "$repo_path" >/dev/null 2>&1; then
+    # echo "ℹ️ Repo $repo_path exists"
+    return 0
+  else
+    echo "🆕 Creating missing GitHub repo: $repo_path ($visibility)"
+    gh repo create "$repo_path" --"$visibility" --confirm
+  fi
+}
+
 is_plain_git_repo() {
   [ -d "$1/.git" ] && ! git config --file .gitmodules --get "submodule.$1.url" >/dev/null 2>&1
 }
@@ -96,6 +134,7 @@ restore)
   REPO_URL="$REPO_ARG"
   echo "🔧 Restoring $PATH_ARG as submodule"
   clean_residual "$PATH_ARG"
+  ensure_github_repo_exists "$REPO_URL" "$VISIBILITY"
   ensure_remote_has_commit "$REPO_URL"
   git submodule add "$REPO_URL" "$PATH_ARG"
   git add .gitmodules "$PATH_ARG"
@@ -147,6 +186,7 @@ apply)
       if [ "$CURRENT_URL" != "$REPO_URL" ]; then
         echo "🔧 URL mismatch, restoring"
         clean_residual "$PATH_ARG"
+        ensure_github_repo_exists "$REPO_URL" "$VISIBILITY"
         ensure_remote_has_commit "$REPO_URL"
         git submodule add "$REPO_URL" "$PATH_ARG"
       else
@@ -156,11 +196,13 @@ apply)
     elif is_plain_git_repo "$PATH_ARG"; then
       echo "🔁 Plain git repo detected, converting to submodule"
       clean_residual "$PATH_ARG"
+      ensure_github_repo_exists "$REPO_URL" "$VISIBILITY"
       ensure_remote_has_commit "$REPO_URL"
       git submodule add "$REPO_URL" "$PATH_ARG"
 
     else
       echo "➕ Submodule missing, adding"
+      ensure_github_repo_exists "$REPO_URL" "$VISIBILITY"
       ensure_remote_has_commit "$REPO_URL"
       git submodule add --force "$REPO_URL" "$PATH_ARG"
     fi

@@ -21,3 +21,7 @@ submodules:
     repo: https://github.com/baronZhang/wd-langchain.git
   - path: projects/ai-backend
     repo: https://github.com/baronZhang/ai-backend.git
+  - path: projects/ai-backend-go
+    repo: https://github.com/baronZhang/ai-backend-go.git
+  - path: projects/go-ai-service
+    repo: https://github.com/baronZhang/go-ai-service.git
