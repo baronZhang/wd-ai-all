@@ -37,3 +37,6 @@
 [submodule "projects/go-ai-service"]
 	path = projects/go-ai-service
 	url = https://github.com/baronZhang/go-ai-service.git
+[submodule "projects/go-langchain-api"]
+	path = projects/go-langchain-api
+	url = https://github.com/baronZhang/go-langchain-api.git
