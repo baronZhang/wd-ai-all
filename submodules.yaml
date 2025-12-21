@@ -25,3 +25,5 @@ submodules:
     repo: https://github.com/baronZhang/ai-backend-go.git
   - path: projects/go-ai-service
     repo: https://github.com/baronZhang/go-ai-service.git
+  - path: projects/go-langchain-api
+    repo: https://github.com/baronZhang/go-langchain-api.git
