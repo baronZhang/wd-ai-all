@@ -9,6 +9,7 @@ Usage:
   submodule-tool restore <agg_root> <path> <repo_url>
   submodule-tool clean   <agg_root>
   submodule-tool list    <agg_root>
+  submodule-tool push    [args...]
 
 Examples:
   submodule-tool add ~/wd-ai-all projects/ai-backend ai-backend private
@@ -150,6 +151,40 @@ list)
     echo " - $p → $url"
   done
   ;;
+
+push)
+  # Pass any extra arguments to git push
+  # Requires running like: ./bin/submodule-tool push .
+  
+  echo "🔄 Checking submodules for unpushed commits..."
+  
+  git submodule foreach --recursive '
+    if git symbolic-ref -q HEAD >/dev/null; then
+        BRANCH=$(git rev-parse --abbrev-ref HEAD)
+        
+        # Check upstream
+        if git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then
+            # Check unpushed
+            if [ -n "$(git log @{u}.. 2>/dev/null)" ]; then
+                echo "🚀 Pushing submodule $name ($BRANCH)..."
+                git push
+            fi
+        else
+            echo "⚠️  Submodule $name ($BRANCH) has no upstream configured. Skipping."
+        fi
+    else
+        # Detached HEAD
+        # Quietly ignore
+        :
+    fi
+  ' || exit 1
+
+  echo "⬆️  Pushing parent repo..."
+  git push
+  echo "✅ All synced and pushed."
+  ;;
+
+
 
 sync)
   echo "🔄 Syncing parent repo..."
