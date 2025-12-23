@@ -152,20 +152,26 @@ list)
   ;;
 
 sync)
-  echo "🔄 Syncing all submodules..."
+  echo "🔄 Syncing parent repo..."
+  git pull --rebase --autostash
 
-  git submodule init
-  git submodule update --recursive
-
-  # 修复目录存在但未 checkout 的 submodule
+  echo "🔍 Checking submodule dirty state..."
   git submodule foreach --recursive '
-    if [ ! -f .git ]; then
-      echo "⚠️ Fixing submodule $name"
-      git checkout .
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+      echo "❌ Submodule $name has uncommitted changes. Please commit or stash first."
+      exit 1
     fi
   '
 
-  echo "✅ Submodules synced"
+  echo "🔄 Syncing submodules to parent pointers..."
+  git submodule init
+  git submodule update --recursive
+
+  echo "ℹ️ Note:"
+  echo "  Submodules may be in detached HEAD state."
+  echo "  This is NORMAL. Parent repo controls the version."
+
+  echo "✅ Ready to work"
   ;;
 
 apply)
